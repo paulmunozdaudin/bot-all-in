@@ -1,0 +1,53 @@
+# Render Blueprint for the Football AI backend (docs/DEPLOYMENT.md).
+#
+# This deploys ONLY the FastAPI backend -- the frontend is deployed
+# separately on Vercel (it's a plain Next.js app, zero-config there).
+#
+# Why Render and not Vercel for the backend: Vercel's model is serverless
+# functions with no long-lived outbound-friendly process; this backend
+# needs a normal always-on container (FastAPI + a persistent DB
+# connection) and, critically for Phase 2, real outbound internet access
+# to pull data from football-data.co.uk -- which Render's build/runtime
+# servers have and this development sandbox does not.
+#
+# Setup (see docs/DEPLOYMENT.md for the full walkthrough):
+#   1. Create a free Postgres database (e.g. a new Supabase project) and
+#      run db/migrations/001_init.sql against it once.
+#   2. In Render: New -> Blueprint -> point at this repo.
+#   3. When prompted, set DATABASE_URL (from step 1) and CORS_ALLOW_ORIGINS
+#      (your Vercel frontend URL) as the blueprint's env var values.
+#   4. After the web service is live, run the ingestion job once (Render
+#      dashboard -> the cron job -> "Run Job Now"), or use the Shell tab:
+#        python -m scripts.ingest_football_data_co_uk --league E0 --seasons 2223 2324 2425 2526
+#   5. Set NEXT_PUBLIC_API_BASE_URL on the Vercel project to this service's
+#      Render URL, and redeploy the frontend.
+
+services:
+  - type: web
+    name: football-ai-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+
+  # Keeps the current Premier League season topped up automatically.
+  # Historical backfill (multiple past seasons) is a one-off you run
+  # manually the first time -- see step 4 above.
+  - type: cron
+    name: football-ai-ingest-current-season
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    schedule: "0 6 * * 1" # every Monday 06:00 UTC
+    dockerCommand: "python -m scripts.ingest_football_data_co_uk --league E0 --seasons 2526"
+    envVars:
+      - key: DATABASE_URL
+        sync: false

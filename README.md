@@ -26,32 +26,55 @@ zero configuration:
 /docs/research   Phase 0 data-provider research
 /db/migrations   Postgres schema (leakage-safe, append-only, immutable predictions)
 /infra           docker-compose.yml
+/render.yaml     Render Blueprint to deploy the backend for real
 ```
 
 ## Status
 
 Phases 0–1 (research, architecture) are complete. Phases 3, 5, 7, 9, 10, 11,
 12 are scaffolded with real, tested code that works today on synthetic
-data. Phases 2, 6, 8's final model choice, and 13–14 are genuinely not
-started — they require a live data contract or a trained model against real
-history, neither of which exists yet. See `ROADMAP.md` for the exact
-per-phase status. Nothing here is faked to look further along than it is.
+data. Phase 2's ingestion code is written and unit-tested but has not yet
+pulled live data (see below — this dev environment has no open internet
+access). Phases 6, 8's final model choice, and 13–14 are genuinely not
+started — they require a trained model against real history, which doesn't
+exist yet. See `ROADMAP.md` for the exact per-phase status. Nothing here is
+faked to look further along than it is.
 
 ## Deploy the frontend on Vercel
 
 Import this repo directly — no root-directory override needed, the
 Next.js app is already at the repo root. Vercel will detect it and deploy
-on `npm run build`.
+on `npm run build`. A `.vercelignore` keeps the Python backend out of
+Vercel's project scanner, since Vercel's serverless model isn't a fit for
+a long-lived FastAPI process — that's what `render.yaml` is for (below).
 
-**Note:** no backend is hosted anywhere yet, so `NEXT_PUBLIC_API_BASE_URL`
-has nothing to point at in a Vercel deployment. Every page will honestly
-show a "could not reach the API" / "no data yet" state — that is the
-intended behavior (this product never fabricates predictions to fill a
-gap), not a bug. To see it with live (still-synthetic, since no real data
-is ingested) responses, run the backend locally per below and set
-`NEXT_PUBLIC_API_BASE_URL` in a `.env` to point at it, or deploy `backend/`
-somewhere that can run a long-lived Python process (Vercel's serverless
-model isn't a natural fit for FastAPI + Postgres).
+**Without a live backend, every page honestly shows "could not reach the
+API" / "no data yet"** — intended behavior (this product never fabricates
+predictions to fill a gap), not a bug. Follow "Getting real data live"
+below to see it with actually-ingested matches.
+
+## Getting real data live: Postgres (Supabase) + backend (Render) + this Vercel frontend
+
+The fastest path to a fully real, live deployment, free-tier only:
+
+1. **Database — a free Supabase Postgres project.** Create one at
+   supabase.com, open its SQL Editor, paste the full contents of
+   `db/migrations/001_init.sql`, and run it once. Copy the connection
+   string (Settings → Database → Connection string) as `DATABASE_URL`.
+2. **Backend — Render, via `render.yaml` at this repo's root.** In Render:
+   New → Blueprint → point at this repo. Set `DATABASE_URL` (from step 1)
+   and `CORS_ALLOW_ORIGINS` (this Vercel URL) when prompted.
+3. **Backfill historical seasons once**, from Render's Shell tab:
+   ```
+   python -m scripts.ingest_football_data_co_uk --league E0 --seasons 2223 2324 2425 2526
+   ```
+   Real Football-Data.co.uk results and closing odds — no signup needed
+   for that source. Swap `--league` for `SP1`/`D1`/`I1`/`F1` for other
+   leagues.
+4. **Connect this frontend** — set `NEXT_PUBLIC_API_BASE_URL` on this
+   Vercel project to the Render service's URL, then redeploy.
+
+Full details and the reasoning behind each choice: `docs/DEPLOYMENT.md`.
 
 ## Run it locally
 
@@ -61,7 +84,7 @@ Backend:
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q                 # 70+ unit tests for every stat module + service
+pytest -q                 # 76 unit tests for every stat module + service
 uvicorn app.main:app --reload
 ```
 
@@ -81,7 +104,7 @@ docker compose -f infra/docker-compose.yml up --build
 
 ## What's real right now vs. what's a placeholder
 
-**Real, tested, working today** (71 unit tests passing in `backend/tests/`):
+**Real, tested, working today** (76 unit tests passing in `backend/tests/`):
 - Elo, independent Poisson, Dixon-Coles score matrices and derived markets
 - Odds↔probability conversion, overround, normalization, EV
 - Brier Score, Log Loss, calibration curves, Expected Calibration Error
@@ -96,11 +119,19 @@ docker compose -f infra/docker-compose.yml up --build
   classification *thresholds* are explicitly marked as placeholders)
 - Combination Engine's correlation-aware search + explicit
   "no strong combination found" result
+- A real Football-Data.co.uk ingestion adapter + runnable script
+  (`backend/app/services/ingestion/football_data_co_uk_adapter.py`,
+  `backend/scripts/ingest_football_data_co_uk.py`) — CSV parsing is
+  unit-tested against real column layouts, but has not been run against
+  live data from the dev environment that built this (see below)
 
 **Explicitly not real yet** (and the code says so, rather than faking it):
-- No live provider is connected — `backend/.env.example` has no real keys
-- No historical dataset has been ingested, so no backtest has actually run
-  against real data, and Market Edge Engine / Combination Engine thresholds
-  are unvalidated placeholders
+- No live provider has actually been ingested from yet. The adapter code
+  is real and tested, but the dev sandbox that built this had no outbound
+  internet access to external data providers at all (confirmed directly).
+  "Getting real data live" above gives the exact steps to run it for real
+- Until that's run, no backtest has actually run against real data, and
+  Market Edge Engine / Combination Engine thresholds are unvalidated
+  placeholders
 - No ML model has been trained (Phase 6) — only the baselines exist
 - The frontend renders honest empty states everywhere real data is missing

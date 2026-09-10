@@ -40,9 +40,9 @@ CREATE TABLE IF NOT EXISTS match (
     away_team_id    INTEGER NOT NULL REFERENCES team(id),
     kickoff_at      TIMESTAMPTZ NOT NULL,
     status          TEXT NOT NULL DEFAULT 'scheduled', -- scheduled|live|finished|postponed|cancelled
-    external_ref    TEXT,
+    external_ref    TEXT NOT NULL,
     source          TEXT NOT NULL,
-    UNIQUE (source, external_ref)
+    UNIQUE (source, external_ref)  -- lets ingestion re-run idempotently (upsert on this key)
 );
 CREATE INDEX IF NOT EXISTS idx_match_kickoff ON match (kickoff_at);
 

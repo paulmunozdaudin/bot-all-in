@@ -8,7 +8,7 @@ ABSOLUTA").
 |---|---|---|
 | 0 | Research data providers, compare, choose with justification | **Done** — `docs/research/DATA_PROVIDERS.md` |
 | 1 | Architecture (this doc set) | **Done** — `docs/ARCHITECTURE.md`, `docs/DATA.md`, `docs/MODEL.md`, `docs/BACKTESTING.md`, `docs/MARKET_ENGINE.md`, `docs/COMBINATIONS.md`, `docs/API.md`, `docs/DEPLOYMENT.md`, `docs/EXPERIMENTS.md` |
-| 2 | Data ingestion (real adapters against the free sources chosen in Phase 0) | **Not started** — requires provider signup decisions outside this session's scope; adapter interface is scaffolded in `backend/app/services/ingestion/` |
+| 2 | Data ingestion (real adapters against the free sources chosen in Phase 0) | **Adapter + ingestion script implemented and unit-tested** (`backend/app/services/ingestion/football_data_co_uk_adapter.py`, `backend/scripts/ingest_football_data_co_uk.py`) — real CSV parsing logic, verified against real column layouts. **Not yet run against live data**: this dev sandbox's network policy blocks outbound access to football-data.co.uk (confirmed via direct request and WebFetch, both `EGRESS_BLOCKED`). `render.yaml` + `docs/DEPLOYMENT.md` "Getting real data live" give the exact steps to run it from a real host (Render) against a real Postgres (Supabase) |
 | 3 | Database | **Scaffolded** — `db/migrations/001_init.sql`, SQLAlchemy models in `backend/app/db/` |
 | 4 | Feature engineering (as-of, leakage-safe) | **Scaffolded** — interface + leakage test defined, real feature set depends on Phase 2 data |
 | 5 | Baseline models | **Implemented + tested** — `backend/app/models_stat/{baseline,elo,poisson,dixon_coles}.py` |
